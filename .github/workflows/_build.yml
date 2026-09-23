@@ -1,0 +1,74 @@
+# Reusable workflow — lint, build & validate the components.
+# Called by ci-cd.yml: validate (no push) on pull_request, build + push on push to main.
+
+name: _build
+
+on:
+  workflow_call:
+    inputs:
+      backend:
+        type: boolean
+        default: false
+      infra:
+        type: boolean
+        default: false
+      environment:
+        required: true
+        type: string
+      config_file_path:
+        required: true
+        type: string
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: false
+
+jobs:
+  backend:
+    name: Backend
+    if: inputs.backend
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Lint
+        uses: ./.github/actions/python-checks
+        with:
+          working_directory: .
+      - name: ${{ github.event_name == 'pull_request' && 'Build image' || 'Build & push image' }}
+        uses: ./.github/actions/build-image
+        with:
+          environment: ${{ inputs.environment }}
+          config_file_path: ${{ inputs.config_file_path }}
+          working_directory_name: .
+          project_name: longlist
+          azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+  # Infra: terraform plan (validation; comments the plan on PRs).
+  infra:
+    name: Infra (plan)
+    if: inputs.infra
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Terraform plan
+        uses: ./.github/actions/terraform-run
+        with:
+          environment: ${{ inputs.environment }}
+          config_file_path: ${{ inputs.config_file_path }}
+          working_directory: infra-longlist
+          state_name: infra
+          command: plan
+          azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          gh_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}

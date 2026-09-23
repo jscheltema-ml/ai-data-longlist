@@ -1,0 +1,86 @@
+# GitHub Actions - CI/CD
+#
+# Runs on pull requests (CI) and on push to development/main (CI [+ CD]), in one workflow:
+#   changes -> detect which components changed (git diff)
+#   build   -> _build.yml   (PR: lint / validate-build / terraform plan;
+#                            push: build + push image)
+#   deploy  -> _deploy.yml  (push to development or dispatch only: terraform
+#                            apply, roll the backend by digest)
+
+name: CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+      - development
+  push:
+    branches:
+      - main
+      - development
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  # Cancel superseded PR runs, but never cancel an in-flight deploy on main.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.detect.outputs.backend }}
+      infra: ${{ steps.detect.outputs.infra }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Detect changes
+        id: detect
+        uses: ./.github/actions/detect-changes
+
+  # CI — runs on PRs and on push. On PRs it lint/validate-builds and terraform-plans.
+  # On push it builds + pushes the image.
+  build:
+    name: ${{ github.event_name == 'pull_request' && 'Build' || 'Build & Push' }}
+    needs: changes
+    uses: ./.github/workflows/_build.yml
+    with:
+      backend: ${{ needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
+      infra: ${{ needs.changes.outputs.infra == 'true' }}
+      environment: dev
+      config_file_path: "config/dev.json"
+    secrets:
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET_DEV }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+  # CD — deploys only on push to development (or manual dispatch);
+  deploy:
+    name: Deploy
+    needs: [changes, build]
+    if: |
+      !cancelled() &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/development')) &&
+      needs.build.result != 'failure' && needs.build.result != 'cancelled' &&
+      (needs.changes.outputs.backend == 'true' ||
+       needs.changes.outputs.infra == 'true' ||
+       github.event_name == 'workflow_dispatch')
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      backend: ${{ needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
+      # Apply terraform only when infra changed; otherwise the infra job is
+      # skipped and the backend rolls onto the existing Container App.
+      infra: ${{ needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch' }}
+      environment: dev
+      config_file_path: "config/dev.json"
+    secrets:
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET_DEV }}
+      GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}

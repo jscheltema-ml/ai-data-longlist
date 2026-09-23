@@ -1,0 +1,60 @@
+name: Build & Push Image
+description: >
+  Thin, config-file-driven wrapper around the shared build-image action. Reads
+  this repo's environment config (via load-config) and hands the values to
+  Marktlink/ai-data-shared-infra build-image, which owns the shared logic:
+  on pull_request it validate-builds only (no push, no cloud credentials); on
+  push / manual dispatch it logs in and builds + pushes to ACR with BuildKit
+  layer caching, then outputs the immutable image digest (build-once,
+  deploy-by-digest).
+  NOTE: the calling job must run actions/checkout BEFORE this action — a local
+  composite action cannot check out the repo it lives in.
+
+inputs:
+  environment:
+    description: Target environment (e.g. dev, prd)
+    required: true
+  config_file_path:
+    description: Path to the environment config file (e.g. config/dev.json)
+    required: true
+  working_directory_name:
+    description: App directory / Docker build context (also the validate image name)
+    required: true
+  project_name:
+    description: Image/repository name. Defaults to the config app_name when empty.
+    required: false
+    default: ""
+  azure_client_secret:
+    description: Azure CI/CD service principal client secret
+    required: true
+
+outputs:
+  image_digest:
+    description: Immutable image reference by digest (server/project@sha256:...). Empty on pull_request.
+    value: ${{ steps.docker.outputs.image_by_digest }}
+
+runs:
+  using: composite
+  steps:
+    # Config only feeds the push path; on PRs the shared action ignores these
+    # (it validate-builds without login), so skipping load-config here is safe.
+    - name: Load Config
+      id: config
+      if: github.event_name != 'pull_request'
+      uses: ./.github/actions/load-config
+      with:
+        environment: ${{ inputs.environment }}
+        config_file_path: ${{ inputs.config_file_path }}
+
+    # Shared action owns the PR gate, azure-login, and BuildKit-cached build+push.
+    - name: Build & Push
+      id: docker
+      uses: Marktlink/ai-data-shared-infra/.github/actions/build-image@v1
+      with:
+        working_directory_name: ${{ inputs.working_directory_name }}
+        project_name: ${{ inputs.project_name != '' && inputs.project_name || steps.config.outputs.app_name }}
+        acr_resource_group: ${{ steps.config.outputs.container_registry_resource_group_name }}
+        azure_client_id: ${{ steps.config.outputs.azure_client_id }}
+        azure_tenant_id: ${{ steps.config.outputs.azure_tenant_id }}
+        azure_subscription_id: ${{ steps.config.outputs.azure_subscription_id }}
+        azure_client_secret: ${{ inputs.azure_client_secret }}

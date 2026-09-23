@@ -1,0 +1,72 @@
+[project]
+name = "long-list"
+version = "0.1.0"
+description = "TODO: describe Long List"
+authors = [
+    {name = "jscheltema",email = "j.scheltema@marktlink.com"}
+]
+license = {text = "Internal use only"}
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas (>=3.0.1,<4.0.0)",
+    "dotenv (>=0.9.9,<0.10.0)",
+    "azure-ai-documentintelligence (>=1.0.2,<2.0.0)",
+    "pymupdf (>=1.27.2.2,<2.0.0.0)",
+    "openai (>=2.29.0,<3.0.0)",
+    "fastapi (>=0.135.2,<0.142.0)",
+    "pyjwt[crypto] (>=2.13.0,<3.0.0)",
+    "azure-identity (>=1.25.3,<2.0.0)",
+    "azure-storage-blob (>=12.20.0,<13.0.0)",
+    "azure-data-tables (>=12.5.0,<13.0.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "pydantic-settings (>=2.15.0,<3.0.0)",
+    "azure-monitor-opentelemetry (>=1.8.7,<2.0.0)",
+    "opentelemetry-instrumentation-fastapi (>=0.61b0,<0.62)",
+    "opentelemetry-instrumentation-httpx (>=0.61b0,<0.62)",
+    "uvicorn (>=0.42.0,<0.53.0)",
+    "python-multipart (>=0.0.22,<0.0.33)",
+    "openpyxl (>=3.1.0,<4.0.0)",
+    "posthog (>=7.14.0,<8.0.0)",
+    "azureopenai (>=0.0.1,<0.0.2)",
+    "rapidfuzz (>=3.14.5,<4.0.0)",
+    "agent-framework-foundry (>=1.11,<2.0)",
+    "tabulate (>=0.10.0,<0.11.0)"
+]
+
+
+# Deployed as a container app, not published as a library, so there is no package to
+# build or install into the venv.
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "ipykernel (>=7.2.0,<8.0.0)",
+    "pytest (>=8.0.0,<10.0.0)",
+    "ruff==0.16.2"
+]
+
+[tool.ruff]
+# First-party roots: this file sits at the repo root but the code lives in src/core,
+# so ruff needs telling or it sorts `api`/`clients`/`services` as third-party.
+src = ["src/core"]
+target-version = "py312"
+line-length = 120
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+# src/core is the import root (so tests can `from api.config import ...`),
+# even though this file now lives at the repo root.
+pythonpath = ["src/core"]
+testpaths = ["src/core/tests"]
+markers = [
+    "integration: needs external services (e.g. Azurite); skipped if unreachable",
+]

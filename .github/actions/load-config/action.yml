@@ -1,0 +1,76 @@
+name: Load Config
+description: Read environment config from {config_file_path} and expose its fields as outputs.
+inputs:
+  environment:
+    description: Target environment (e.g. dev, prd)
+    required: true
+  config_file_path:
+    description: Path to config file
+    required: true
+outputs:
+  project_name:
+    description: Project name used in resource naming
+    value: ${{ steps.parse.outputs.project_name }}
+  app_name:
+    description: Image/resource base name (defaults to project_name when not set)
+    value: ${{ steps.parse.outputs.app_name }}
+  location:
+    description: Azure region
+    value: ${{ steps.parse.outputs.location }}
+  tfstate_resource_group_name:
+    description: Terraform state resource group name
+    value: ${{ steps.parse.outputs.tfstate_resource_group_name }}
+  tfstate_storage_account_name:
+    description: Terraform state storage account name
+    value: ${{ steps.parse.outputs.tfstate_storage_account_name }}
+  tfstate_container_name:
+    description: Terraform state container name
+    value: ${{ steps.parse.outputs.tfstate_container_name }}
+  container_registry_name:
+    description: Shared container registry name
+    value: ${{ steps.parse.outputs.container_registry_name }}
+  container_registry_resource_group_name:
+    description: Shared container registry resource group
+    value: ${{ steps.parse.outputs.container_registry_resource_group_name }}
+  azure_client_id:
+    description: CI/CD service principal client ID
+    value: ${{ steps.parse.outputs.azure_client_id }}
+  azure_tenant_id:
+    description: Azure tenant ID
+    value: ${{ steps.parse.outputs.azure_tenant_id }}
+  azure_subscription_id:
+    description: Azure subscription ID
+    value: ${{ steps.parse.outputs.azure_subscription_id }}
+  app_client_id:
+    description: Entra app registration client ID (frontend/backend auth)
+    value: ${{ steps.parse.outputs.app_client_id }}
+  gh_app_id:
+    description: GitHub App ID used to fetch private Terraform modules
+    value: ${{ steps.parse.outputs.gh_app_id }}
+runs:
+  using: composite
+  steps:
+    - name: Parse config
+      id: parse
+      shell: bash
+      run: |
+        CONFIG="${{ inputs.config_file_path }}"
+        if [ ! -f "$CONFIG" ]; then
+          echo "::error::Config file not found: $CONFIG"
+          exit 1
+        fi
+        {
+          echo "project_name=$(jq -r '.terraform_vars.project_name' "$CONFIG")"
+          echo "app_name=$(jq -r '.terraform_vars.app_name // .terraform_vars.project_name' "$CONFIG")"
+          echo "location=$(jq -r '.terraform_vars.location' "$CONFIG")"
+          echo "tfstate_resource_group_name=$(jq -r '.backend_config.resource_group_name' "$CONFIG")"
+          echo "tfstate_storage_account_name=$(jq -r '.backend_config.storage_account_name' "$CONFIG")"
+          echo "tfstate_container_name=$(jq -r '.backend_config.container_name' "$CONFIG")"
+          echo "container_registry_name=$(jq -r '.terraform_vars.container_registry_name' "$CONFIG")"
+          echo "container_registry_resource_group_name=$(jq -r '.terraform_vars.container_registry_resource_group_name' "$CONFIG")"
+          echo "azure_client_id=$(jq -r '.terraform_vars.azure_client_id' "$CONFIG")"
+          echo "azure_tenant_id=$(jq -r '.terraform_vars.azure_tenant_id' "$CONFIG")"
+          echo "azure_subscription_id=$(jq -r '.terraform_vars.subscription_id' "$CONFIG")"
+          echo "app_client_id=$(jq -r '.terraform_vars.app_client_id' "$CONFIG")"
+          echo "gh_app_id=$(jq -r '.terraform_vars.gh_app_id' "$CONFIG")"
+        } >> "$GITHUB_OUTPUT"

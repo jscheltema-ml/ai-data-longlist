@@ -1,0 +1,127 @@
+name: Terraform Run
+description: >
+  Load config, authenticate to Azure + private Git modules, init, then plan or
+  apply a Terraform directory. On `plan` during a pull_request it also comments
+  the plan status. Extra TF_VARs can be set via $GITHUB_ENV in a prior step.
+  NOTE: the calling job must run actions/checkout BEFORE this action.
+
+inputs:
+  environment:
+    description: Target environment (e.g. dev, prd)
+    required: true
+  config_file_path:
+    description: Path to the environment config file
+    required: true
+  working_directory:
+    description: Terraform working directory
+    required: true
+  state_name:
+    description: Base name for the tfstate key ({project}/{state_name}-{project}.tfstate)
+    required: true
+  command:
+    description: "'plan' or 'apply'"
+    required: true
+  azure_client_secret:
+    description: Azure CI/CD service principal client secret
+    required: true
+  gh_app_private_key:
+    description: GitHub App private key (for private Terraform modules)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Load Config
+      id: config
+      uses: ./.github/actions/load-config
+      with:
+        environment: ${{ inputs.environment }}
+        config_file_path: ${{ inputs.config_file_path }}
+
+    - name: Export Terraform Azure credentials
+      shell: bash
+      run: |
+        {
+          echo "ARM_CLIENT_ID=${{ steps.config.outputs.azure_client_id }}"
+          echo "ARM_TENANT_ID=${{ steps.config.outputs.azure_tenant_id }}"
+          echo "ARM_SUBSCRIPTION_ID=${{ steps.config.outputs.azure_subscription_id }}"
+          echo "ARM_CLIENT_SECRET=${{ inputs.azure_client_secret }}"
+        } >> "$GITHUB_ENV"
+
+    - name: Generate GitHub App token
+      id: app-token
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      with:
+        client-id: ${{ steps.config.outputs.gh_app_id }}
+        private-key: ${{ inputs.gh_app_private_key }}
+        owner: Marktlink
+
+    - name: Configure Git for private modules
+      uses: Marktlink/ai-data-shared-infra/.github/actions/configure-git-private-modules@v1
+      with:
+        github_pat: ${{ steps.app-token.outputs.token }}
+
+    - name: Azure Login
+      uses: Marktlink/ai-data-shared-infra/.github/actions/azure-login@v1
+      with:
+        client_id: ${{ steps.config.outputs.azure_client_id }}
+        client_secret: ${{ inputs.azure_client_secret }}
+        tenant_id: ${{ steps.config.outputs.azure_tenant_id }}
+        subscription_id: ${{ steps.config.outputs.azure_subscription_id }}
+
+    - name: Terraform Init
+      id: init
+      uses: Marktlink/ai-data-shared-infra/.github/actions/terraform-init@v1
+      with:
+        working_directory: ${{ inputs.working_directory }}
+        environment: ${{ inputs.environment }}
+        state_key: ${{ steps.config.outputs.project_name }}/${{ inputs.state_name }}-${{ steps.config.outputs.project_name }}.tfstate
+        tfstate_resource_group_name: ${{ steps.config.outputs.tfstate_resource_group_name }}
+        tfstate_storage_account_name: ${{ steps.config.outputs.tfstate_storage_account_name }}
+        tfstate_container_name: ${{ steps.config.outputs.tfstate_container_name }}
+
+    - name: Terraform Plan
+      id: plan
+      if: inputs.command == 'plan'
+      uses: Marktlink/ai-data-shared-infra/.github/actions/terraform-plan@v1
+      env:
+        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+      with:
+        working_directory: ${{ inputs.working_directory }}
+        environment: ${{ inputs.environment }}
+
+    - name: Comment Plan on PR
+      if: inputs.command == 'plan' && github.event_name == 'pull_request'
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        script: |
+          const output = `#### Terraform Plan - ${{ inputs.environment }} 🌍
+
+          | Step | Status |
+          |------|--------|
+          | Init | ${{ steps.init.outcome == 'success' && '✅' || '❌' }} |
+          | Format | ${{ steps.plan.outputs.fmt_outcome == 'success' && '✅' || '⚠️' }} |
+          | Validate | ${{ steps.plan.outputs.validate_outcome == 'success' && '✅' || '❌' }} |
+          | Plan | ${{ steps.plan.outputs.plan_outcome == 'success' && '✅' || '❌' }} |
+
+          *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          });
+
+    - name: Terraform Apply
+      if: inputs.command == 'apply'
+      uses: Marktlink/ai-data-shared-infra/.github/actions/terraform-apply@v1
+      env:
+        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+      with:
+        working_directory: ${{ inputs.working_directory }}
+        environment: ${{ inputs.environment }}
+        state_key: ${{ steps.config.outputs.project_name }}/${{ inputs.state_name }}-${{ steps.config.outputs.project_name }}.tfstate
+        tfstate_resource_group_name: ${{ steps.config.outputs.tfstate_resource_group_name }}
+        tfstate_storage_account_name: ${{ steps.config.outputs.tfstate_storage_account_name }}
+        tfstate_container_name: ${{ steps.config.outputs.tfstate_container_name }}

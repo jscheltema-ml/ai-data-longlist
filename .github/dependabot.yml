@@ -1,0 +1,64 @@
+version: 2
+
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    target-branch: "development"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      pip:
+        patterns: ["*"]
+
+  - package-ecosystem: "terraform"
+    directory: "/infra-longlist/"
+    target-branch: "development"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      terraform:
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    target-branch: "development"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      docker:
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    target-branch: "development"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 5
+    ignore:
+      # Ignore our own shared workflows; keep them pinned at @v1.
+      - dependency-name: "Marktlink/ai-data-shared-infra*"
+    groups:
+      github-actions:
+        patterns: ["*"]

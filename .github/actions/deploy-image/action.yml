@@ -1,0 +1,72 @@
+name: Deploy Image
+description: >
+  Roll a Container App (kind=app) or Container App Job (kind=job) to the image
+  built for the current commit. Resolves the immutable digest from ACR by the
+  short-SHA tag that the build pushed, then runs `az containerapp [job] update`
+  by digest (so dev and prd deploy byte-identical images). NOTE: the calling job
+  must run actions/checkout BEFORE this action.
+
+inputs:
+  environment:
+    description: Target environment (e.g. dev, prd)
+    required: true
+  config_file_path:
+    description: Path to the environment config file (e.g. config/dev.json)
+    required: true
+  kind:
+    description: "Resource kind: 'job' (Container App Job, caj-) or 'app' (Container App, ca-)"
+    required: true
+  project_name:
+    description: Image/resource base name. Defaults to the config app_name when empty.
+    required: false
+    default: ""
+  azure_client_secret:
+    description: Azure CI/CD service principal client secret
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Load Config
+      id: config
+      uses: ./.github/actions/load-config
+      with:
+        environment: ${{ inputs.environment }}
+        config_file_path: ${{ inputs.config_file_path }}
+
+    - name: Azure Login
+      uses: Marktlink/ai-data-shared-infra/.github/actions/azure-login@v1
+      with:
+        client_id: ${{ steps.config.outputs.azure_client_id }}
+        client_secret: ${{ inputs.azure_client_secret }}
+        tenant_id: ${{ steps.config.outputs.azure_tenant_id }}
+        subscription_id: ${{ steps.config.outputs.azure_subscription_id }}
+
+    - name: Resolve digest and update image
+      shell: bash
+      env:
+        KIND: ${{ inputs.kind }}
+        PROJECT: ${{ inputs.project_name != '' && inputs.project_name || steps.config.outputs.app_name }}
+        ACR_NAME: ${{ steps.config.outputs.container_registry_name }}
+        RESOURCE_GROUP: rg-ai-data-${{ steps.config.outputs.project_name }}-${{ inputs.environment }}
+        ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        TAG="${GITHUB_SHA:0:7}"
+        DIGEST=$(az acr repository show \
+          --name "$ACR_NAME" \
+          --image "${PROJECT}:${TAG}" \
+          --query digest --output tsv)
+        IMAGE="${ACR_NAME}.azurecr.io/${PROJECT}@${DIGEST}"
+        echo "Deploying ${IMAGE}"
+        if [ "$KIND" = "job" ]; then
+          az containerapp job update \
+            --name "caj-${PROJECT}-${ENVIRONMENT}" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE"
+        else
+          az containerapp update \
+            --name "ca-${PROJECT}-${ENVIRONMENT}" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$IMAGE"
+        fi

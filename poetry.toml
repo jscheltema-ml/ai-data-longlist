@@ -1,0 +1,8 @@
+# Keep the venv at ./.venv instead of Poetry's global cache, where the directory name
+# carries a hash of the absolute project path and so differs per machine. An in-project
+# path is the same for everyone, which is what lets editor config and any tooling that
+# needs an interpreter path refer to it. Committed deliberately: this overrides each
+# developer's global `virtualenvs.in-project` setting, so a fresh clone behaves the same
+# way without anyone configuring Poetry first.
+[virtualenvs]
+in-project = true

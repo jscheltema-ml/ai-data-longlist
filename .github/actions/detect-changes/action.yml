@@ -1,0 +1,75 @@
+name: Detect Changes
+description: >
+  Detect which components changed via `git diff` (no third-party action — org
+  allowlist). Diffs the PR base...head, or push before..after; treats everything
+  as changed on workflow_dispatch, a new branch, or a config/.github change.
+  Outputs a boolean per component. NOTE: the calling job must run
+  `actions/checkout` with `fetch-depth: 0` BEFORE this action so the diff base
+  is available.
+  TODO: move this to the shared actions repo.
+
+outputs:
+  backend:
+    description: "'true' if the backend (src/core) changed"
+    value: ${{ steps.detect.outputs.backend }}
+  infra:
+    description: "'true' if the Terraform infra changed"
+    value: ${{ steps.detect.outputs.infra }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect changed components
+      id: detect
+      shell: bash
+      env:
+        EVENT: ${{ github.event_name }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        PUSH_AFTER: ${{ github.sha }}
+      run: |
+        set -uo pipefail
+        ALL_TRUE() {
+          {
+            echo "backend=true"
+            echo "infra=true"
+          } >> "$GITHUB_OUTPUT"
+        }
+
+        # Build everything on manual runs.
+        if [ "$EVENT" = "workflow_dispatch" ]; then
+          echo "workflow_dispatch — treating all components as changed"
+          ALL_TRUE; exit 0
+        fi
+
+        if [ "$EVENT" = "pull_request" ]; then
+          DIFF_RANGE="${PR_BASE}...${PR_HEAD}"
+          BASE="$PR_BASE"
+        else
+          DIFF_RANGE="${PUSH_BEFORE} ${PUSH_AFTER}"
+          BASE="$PUSH_BEFORE"
+        fi
+
+        # New branch / missing base (zero SHA or not in history) — build everything.
+        if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+          echo "No usable diff base ($BASE) — treating all components as changed"
+          ALL_TRUE; exit 0
+        fi
+
+        FILES=$(git diff --name-only $DIFF_RANGE)
+        echo "Changed files:"
+        echo "$FILES"
+
+        has() { echo "$FILES" | grep -qE "$1"; }
+
+        # A config or workflow change can affect any component — build all.
+        GLOBAL=false
+        if has '^config/' || has '^\.github/'; then GLOBAL=true; fi
+
+        flag() { if [ "$GLOBAL" = true ] || has "$1"; then echo true; else echo false; fi; }
+
+        {
+          echo "backend=$(flag '^(src/core/|pyproject\.toml|poetry\.(lock|toml))')"
+          echo "infra=$(flag '^infra-longlist/')"
+        } >> "$GITHUB_OUTPUT"

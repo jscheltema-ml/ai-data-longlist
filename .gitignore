@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.*
+
+# Files
+*.pdf
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.hcl
+*.tfvars
+
+.idea/*
+*.iml
+
+userstory.md
+
+__local*
+CLAUDE.md
+
+CLAUDE.local.md
+
+*.xlsx

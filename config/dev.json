@@ -1,0 +1,35 @@
+{
+  "terraform_vars": {
+    "environment": "dev",
+    "subscription_id": "f92ea48d-4e63-4b31-a5fd-3d34a2efde1a",
+    "azure_client_id": "58bf7969-bd54-4bb1-94d5-5b7dc888b17e",
+    "azure_tenant_id": "deaa91e3-57cf-46c3-ae77-bb57291f05cd",
+    "gh_app_id": "2965878",
+    "app_client_id": "",
+    "location": "westeurope",
+    "project_name": "longlist",
+    "container_registry_name": "crmlinkaidatashareddev",
+    "container_registry_resource_group_name": "rg-mlink-aidata-infra-dev",
+    "image_retention_days": 1,
+    "registry_base_name": "shared",
+    "keyvault_base_name": "mlink-aidata-shared",
+    "min_replicas": 1,
+    "max_replicas": 1,
+    "http_concurrent_requests": 10,
+    "cpu": 0.5,
+    "memory": "1Gi",
+    "azure_api_version": "2025-04-01-preview",
+    "azure_endpoint": "https://klem-mmaks1ql-swedencentral.cognitiveservices.azure.com/",
+    "llm_deployment": "gpt-5.4",
+    "foundry_endpoint": "",
+    "foundry_deployment": "gpt-5.5",
+    "storage_container_name": "run-payloads",
+    "log_level": "INFO",
+    "noisy_log_level": "WARNING"
+  },
+  "backend_config": {
+    "resource_group_name": "rg-mlink-aidata-infra-dev",
+    "storage_account_name": "sttfconfigdev",
+    "container_name": "tfstate"
+  }
+}

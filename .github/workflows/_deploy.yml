@@ -1,0 +1,75 @@
+# Reusable workflow — deploy the components.
+# CD-only: called by ci-cd.yml (push/dispatch) after the build job. Infra
+# (terraform apply) runs first; the backend image roll depends on it (the
+# Container App it creates is what the az-update targets).
+
+name: _deploy
+
+on:
+  workflow_call:
+    inputs:
+      backend:
+        type: boolean
+        default: false
+      infra:
+        type: boolean
+        default: false
+      environment:
+        required: true
+        type: string
+      config_file_path:
+        required: true
+        type: string
+    secrets:
+      AZURE_CLIENT_SECRET:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+jobs:
+  infra:
+    name: Infra (apply)
+    if: inputs.infra
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Terraform apply
+        uses: ./.github/actions/terraform-run
+        with:
+          environment: ${{ inputs.environment }}
+          config_file_path: ${{ inputs.config_file_path }}
+          working_directory: infra-longlist
+          state_name: infra
+          command: apply
+          azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          gh_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
+  # Roll the backend Container App to the image built for this commit (by digest).
+  # Runs after infra (ordering), but tolerates infra being skipped (no infra change).
+  backend:
+    name: Backend
+    if: |
+      !cancelled() &&
+      inputs.backend &&
+      needs.infra.result != 'failure' && needs.infra.result != 'cancelled'
+    needs: infra
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Deploy image
+        uses: ./.github/actions/deploy-image
+        with:
+          environment: ${{ inputs.environment }}
+          config_file_path: ${{ inputs.config_file_path }}
+          kind: app
+          azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}

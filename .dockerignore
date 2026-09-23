@@ -1,0 +1,28 @@
+# NOTE: patterns are matched against paths relative to the build context root, so a bare
+# `.env` would only exclude a root-level file. The `**/` prefix is what makes these apply
+# at any depth, which matters here because the code lives under src/core/.
+
+# Secrets must never enter the image: the container app injects real env vars, and
+# api/config.py tolerates a missing .env by falling back to them.
+**/.env
+**/.env.*
+
+# Local virtualenv: large, and built for the host platform.
+**/.venv/
+
+.git/
+.github/
+.vscode/
+
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.ruff_cache/
+
+# Notebooks are local scratch space (gitignored) and can hold output data.
+**/*.ipynb
+**/.ipynb_checkpoints/
+
+# Infra and docs are not needed to run the app.
+infra-longlist/
+README.md

@@ -1,0 +1,35 @@
+name: Auto Tag
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Create Version Tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Auto Tag
+        uses: Marktlink/ai-data-shared-infra/.github/actions/auto-tag@v1
+        with:
+          bump: ${{ github.event.inputs.bump || 'auto' }}
