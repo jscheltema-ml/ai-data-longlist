@@ -3,18 +3,24 @@
 from pydantic import AwareDatetime, model_validator
 
 from shared.schemas.common.base import Base
-from shared.schemas.common.enums import CheckedStatus, CleanedStatus, ScoredStatus
+from shared.schemas.common.enums import CheckStatus, CleanedStatus, ScoredStatus
 
 
 class Pipeline(Base):
     """Per-stage status, timestamp and the versioned thing that did the work.
 
-    The `*_by` fields carry a version ("merge_rules@1.3", "verify_agent@2.1") rather than a
-    bare name, so a change in rules or prompt is visible in every record produced after it
-    and two records scored differently can be told apart without guessing at dates.
+    The check stage is two independent questions, so it is two sets of fields rather than
+    one. Relevance asks whether the buyer fits the brief at all: sector, activity, size,
+    geography. Availability asks whether they can act right now, which in practice means
+    whether they are already in a process. A buyer can be a perfect fit and unavailable, or
+    free and irrelevant, and the two are found from different evidence by different agents,
+    so collapsing them into one verdict loses which one failed.
 
-    Each stage writes only its own three fields, which is what lets stages run out of step
-    with each other on the same record.
+    The `*_by` fields carry a version ("relevance_agent@1.0") rather than a bare name, so a
+    change in rules or prompt is visible in every record produced after it.
+
+    Each stage writes only its own fields, which is what lets stages run out of step with
+    each other on the same record.
     """
 
     ingested_at: AwareDatetime
@@ -23,25 +29,30 @@ class Pipeline(Base):
     cleaned_at: AwareDatetime | None = None
     cleaned_by: str | None = None
 
-    checked_status: CheckedStatus = CheckedStatus.PENDING
-    checked_at: AwareDatetime | None = None
-    checked_by: str | None = None
-    # Reason codes, each set exactly when its verdict says so — see the validator below.
-    exclusion_reason: str | None = None
-    flag_reason: str | None = None
+    # Fits the brief: sector, activity, size, geography.
+    relevant_status: CheckStatus = CheckStatus.PENDING
+    relevant_at: AwareDatetime | None = None
+    relevant_by: str | None = None
+    relevant_reason: str | None = None
+
+    # Free to act, meaning not already in a process.
+    available_status: CheckStatus = CheckStatus.PENDING
+    available_at: AwareDatetime | None = None
+    available_by: str | None = None
+    available_reason: str | None = None
 
     scored_status: ScoredStatus = ScoredStatus.PENDING
     scored_at: AwareDatetime | None = None
     scored_by: str | None = None
 
     @model_validator(mode="after")
-    def _reasons_match_verdict(self) -> "Pipeline":
-        """An excluded item without a reason is unreviewable, and a reason on an item that
-        was not excluded is a leftover from an earlier verdict. Both are caught here."""
+    def _reasons_match_verdicts(self) -> "Pipeline":
+        """An excluded buyer without a reason is unreviewable, and a reason on one that was
+        not excluded is a leftover from an earlier verdict. Both are caught here."""
         for status, reason, name in (
-            (CheckedStatus.EXCLUDED, self.exclusion_reason, "exclusion_reason"),
-            (CheckedStatus.FLAGGED, self.flag_reason, "flag_reason"),
+            (self.relevant_status, self.relevant_reason, "relevant_reason"),
+            (self.available_status, self.available_reason, "available_reason"),
         ):
-            if (self.checked_status is status) != (reason is not None):
-                raise ValueError(f"{name} must be set if and only if checked_status is {status.value!r}")
+            if (status is CheckStatus.EXCLUDED) != (reason is not None):
+                raise ValueError(f"{name} must be set if and only if its status is 'excluded'")
         return self

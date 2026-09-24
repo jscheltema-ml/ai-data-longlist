@@ -1,136 +1,158 @@
-"""Device-code login for the Gain MCP server.
+"""OAuth login for the Gain MCP server.
 
 Gain's MCP server is guarded by WorkOS AuthKit, not by Entra, so a token minted from our own
 app registration is rejected whatever scope it carries: wrong issuer, wrong audience.
-Microsoft SSO is how you authenticate on AuthKit's page, not how the token is issued.
+Microsoft SSO is only how you authenticate on AuthKit's page.
 
-Device code rather than the authorization-code flow because it needs no local callback
-listener, which makes it usable from a notebook and over SSH.
+Authorization code with PKCE, the flow OAuth 2.1 mandates and the one Gain confirmed they
+support. It needs a browser and a person, so nothing here can run unattended.
+
+The SDK's `OAuthClientProvider` does the protocol work (discovery, dynamic registration,
+PKCE, refresh). What it leaves to us is the three host-specific parts: where to keep the
+tokens, how to open a browser, and how to catch the redirect.
 """
 
 import json
-import time
+import threading
 import webbrowser
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
+from agent_framework import MCPStreamableHTTPTool
+from mcp import ClientSession
+from mcp.client.auth import OAuthClientProvider, TokenStorage
+from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
 
 MCP_URL = "https://gain.ai/mcp"
-SCOPE = "openid profile email offline_access"
-DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+CALLBACK_PORT = 41573
+CALLBACK_URL = f"http://localhost:{CALLBACK_PORT}/callback"
 
-# Outside the repo, and holding a refresh token, so it is chmod 600 rather than gitignored.
-# The client_id lives here too: registration is dynamic, and re-registering on every run
-# would leave a trail of dead clients on Gain's authorization server.
+# Outside the repo, and holds a refresh token, so it is chmod 600 rather than gitignored.
+# The client registration lives here too: registration is dynamic, and re-registering every
+# run would leave a trail of dead clients on Gain's authorization server.
 CACHE = Path.home() / ".gain_mcp_token.json"
 
 
-def get_token(mcp_url: str = MCP_URL) -> str:
-    """Return a bearer token for `mcp_url`, logging in through the browser if needed."""
-    cache = _load()
-    if cache.get("expires_at", 0) > time.time() + 60:
-        return cache["access_token"]
+class _FileStorage(TokenStorage):
+    """Tokens and client registration in one JSON file."""
 
-    with httpx.Client(timeout=30, follow_redirects=True) as http:
-        meta = _discover(http, mcp_url)
+    def _read(self) -> dict:
+        try:
+            return json.loads(CACHE.read_text())
+        except (OSError, ValueError):
+            return {}
 
-        client_id = cache.get("client_id") or _register(http, meta)
-        device = _authorize(http, meta, client_id)
-        token = _poll(http, meta, client_id, device)
+    def _write(self, key: str, value: dict) -> None:
+        CACHE.write_text(json.dumps(self._read() | {key: value}))
+        CACHE.chmod(0o600)
 
-    _save(
-        {
-            "client_id": client_id,
-            "access_token": token["access_token"],
-            "refresh_token": token.get("refresh_token"),
-            "expires_at": time.time() + token.get("expires_in", 3600),
-        }
-    )
-    return token["access_token"]
+    async def get_tokens(self) -> OAuthToken | None:
+        raw = self._read().get("tokens")
+        return OAuthToken.model_validate(raw) if raw else None
 
+    async def set_tokens(self, tokens: OAuthToken) -> None:
+        self._write("tokens", tokens.model_dump(mode="json"))
 
-def _discover(http: httpx.Client, mcp_url: str) -> dict:
-    """Follow RFC 9728 from the resource to its authorization server's metadata."""
-    origin = f"{urlparse(mcp_url).scheme}://{urlparse(mcp_url).netloc}"
-    resource = _json(http.get(f"{origin}/.well-known/oauth-protected-resource"))
-    server = resource["authorization_servers"][0].rstrip("/")
-    return _json(http.get(f"{server}/.well-known/oauth-authorization-server"))
+    async def get_client_info(self) -> OAuthClientInformationFull | None:
+        raw = self._read().get("client")
+        return OAuthClientInformationFull.model_validate(raw) if raw else None
+
+    async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
+        self._write("client", client_info.model_dump(mode="json"))
 
 
-def _register(http: httpx.Client, meta: dict) -> str:
-    """Register a public client on the fly (RFC 7591); no secret, nothing pre-arranged."""
-    body = {
-        "client_name": "long-list",
-        # Required even though the device flow never redirects, and it must be non-empty.
-        # localhost is the conventional placeholder for a native client.
-        "redirect_uris": ["http://localhost"],
-        "grant_types": [DEVICE_GRANT, "refresh_token"],
-        "token_endpoint_auth_method": "none",
-        "application_type": "native",
-    }
-    return _json(http.post(meta["registration_endpoint"], json=body))["client_id"]
+def _serve_one_callback() -> dict[str, str]:
+    """Run a one-request web server and return the query the browser was redirected with."""
+    captured: dict[str, str] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            captured.update({k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()})
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(b"<p>Signed in. You can close this tab.</p>")
+
+        def log_message(self, *args: object) -> None:
+            """Silence the default stderr logging, which lands in the notebook."""
+
+    with HTTPServer(("localhost", CALLBACK_PORT), Handler) as server:
+        server.handle_request()
+    return captured
 
 
-def _authorize(http: httpx.Client, meta: dict, client_id: str) -> dict:
-    device = _json(http.post(meta["device_authorization_endpoint"], data={"client_id": client_id, "scope": SCOPE}))
-    url = device.get("verification_uri_complete") or device["verification_uri"]
-    # flush because a notebook buffers stdout, and this is the one thing the user has to act
-    # on before the poll below can finish.
-    print(f"Sign in at {url}", flush=True)
-    print(f"Code {device['user_code']}: approve it in the browser, being signed in is not enough.", flush=True)
-    webbrowser.open(url)
-    return device
+def gain_auth(mcp_url: str = MCP_URL) -> OAuthClientProvider:
+    """The httpx auth flow that signs requests to `mcp_url`, logging in on first use."""
 
+    async def redirect_handler(url: str) -> None:
+        print(f"Opening {url}", flush=True)
+        webbrowser.open(url)
 
-def _poll(http: httpx.Client, meta: dict, client_id: str, device: dict) -> dict:
-    """Wait for the browser sign-in, backing off when the server says to (RFC 8628)."""
-    interval = device.get("interval", 5)
-    deadline = time.time() + device.get("expires_in", 600)
+    async def callback_handler() -> tuple[str, str | None]:
+        # The callback server blocks, so it goes on a thread to leave the event loop free.
+        result: dict[str, str] = {}
+        thread = threading.Thread(target=lambda: result.update(_serve_one_callback()))
+        thread.start()
+        thread.join()
+        if "error" in result:
+            raise RuntimeError(f"sign-in failed: {result.get('error_description', result['error'])}")
+        return result["code"], result.get("state")
 
-    while time.time() < deadline:
-        time.sleep(interval)
-        response = http.post(
-            meta["token_endpoint"],
-            data={"grant_type": DEVICE_GRANT, "device_code": device["device_code"], "client_id": client_id},
-        )
-        if response.status_code == 200:
-            print("signed in.", flush=True)
-            return response.json()
-
-        error = response.json().get("error")
-        if error == "authorization_pending":
-            print(f"  waiting for approval, {int(deadline - time.time())}s left", flush=True)
-            continue
-        if error == "slow_down":
-            interval += 5
-            continue
-        raise RuntimeError(f"device login failed: {error}")
-
-    raise TimeoutError(
-        "the code expired before anyone approved it. The browser page needs the confirm button "
-        "pressed for this specific code; an existing session only skips the password step."
+    return OAuthClientProvider(
+        server_url=mcp_url,
+        client_metadata=OAuthClientMetadata(
+            client_name="long-list",
+            redirect_uris=[CALLBACK_URL],
+            grant_types=["authorization_code", "refresh_token"],
+            response_types=["code"],
+            token_endpoint_auth_method="none",
+            scope="openid profile email offline_access",
+        ),
+        storage=_FileStorage(),
+        redirect_handler=redirect_handler,
+        callback_handler=callback_handler,
     )
 
 
-def _json(response: httpx.Response) -> dict:
-    """Return the body, or raise carrying it.
+def gain_client(mcp_url: str = MCP_URL) -> httpx.AsyncClient:
+    """An HTTP client that authenticates itself against `mcp_url`.
 
-    `raise_for_status()` discards the response body, and for OAuth that body is the only part
-    worth reading: a bare 400 says nothing, `error_description` says which field is wrong.
+    This is what `MCPStreamableHTTPTool(http_client=...)` wants, and what hands the agent
+    every tool Gain exposes without any of them being declared here.
     """
-    if response.is_error:
-        raise RuntimeError(f"{response.status_code} from {response.request.url}: {response.text[:300]}")
-    return response.json()
+    return httpx.AsyncClient(auth=gain_auth(mcp_url), timeout=60, follow_redirects=True)
 
 
-def _load() -> dict:
-    try:
-        return json.loads(CACHE.read_text())
-    except (OSError, ValueError):
-        return {}
+@asynccontextmanager
+async def gain_session(mcp_url: str = MCP_URL) -> AsyncIterator[ClientSession]:
+    """An initialised MCP session, for calling Gain by hand rather than through an agent.
+
+        async with gain_session() as session:
+            tools = await session.list_tools()
+    """
+    async with streamable_http_client(mcp_url, http_client=gain_client(mcp_url)) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            yield session
 
 
-def _save(cache: dict) -> None:
-    CACHE.write_text(json.dumps(cache))
-    CACHE.chmod(0o600)
+def gain_mcp_tools(name: str = "gain", mcp_url: str = MCP_URL) -> MCPStreamableHTTPTool:
+    """Every tool Gain exposes, as one agent tool.
+
+    Nothing is declared here, so a tool Gain adds becomes available without a change on our
+    side. Hand the result to `Agent(tools=...)` and open it around the run:
+
+        gain_tools = gain_mcp_tools()
+        async with gain_tools:
+            response = await agent.run("...")
+
+    A factory rather than a module-level instance: each tool owns an MCP session, so two
+    agents sharing one would share that session and the first to exit would close it out
+    from under the second.
+    """
+    return MCPStreamableHTTPTool(name=name, url=mcp_url, http_client=gain_client(mcp_url))

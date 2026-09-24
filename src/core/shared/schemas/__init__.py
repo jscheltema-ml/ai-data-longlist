@@ -15,8 +15,12 @@ implementation detail.
 """
 
 from shared.schemas.agents import (
+    AVAILABILITY_SCHEMA,
+    RELEVANCE_SCHEMA,
     SEARCH_AGENT_SCHEMA,
     WIP_SEARCH_SCHEMA,
+    AvailabilityCheck,
+    RelevanceCheck,
     SearchAgentCompany,
     SearchAgentOutput,
     WIPSearchCompany,
@@ -51,7 +55,8 @@ from shared.schemas.common import (
     Base,
     BuyerType,
     CapacityBasis,
-    CheckedStatus,
+    CheckResult,
+    CheckStatus,
     CleanedStatus,
     CountryCode,
     CurrencyCode,
@@ -67,6 +72,8 @@ from shared.schemas.envelope import SourceEnvelope
 from shared.schemas.item import CompanyItem
 
 __all__ = [
+    "AVAILABILITY_SCHEMA",
+    "RELEVANCE_SCHEMA",
     "SEARCH_AGENT_SCHEMA",
     "WIP_SEARCH_SCHEMA",
     "KNOWN_CUSTOMER_TYPES",
@@ -80,7 +87,8 @@ __all__ = [
     "Capacity",
     "CapacityBasis",
     "CheckEvidence",
-    "CheckedStatus",
+    "CheckResult",
+    "CheckStatus",
     "Classification",
     "CleanedStatus",
     "CompanyItem",
@@ -104,6 +112,8 @@ __all__ = [
     "ScoreComponent",
     "ScoredStatus",
     "Scoring",
+    "AvailabilityCheck",
+    "RelevanceCheck",
     "SearchAgentCompany",
     "SearchAgentOutput",
     "SourceEnvelope",

@@ -4,7 +4,7 @@ from pydantic import Field, model_validator
 
 from shared.schemas.blocks.capacity import Capacity
 from shared.schemas.blocks.classification import Classification
-from shared.schemas.blocks.evidence import CheckEvidence, Evidence
+from shared.schemas.blocks.evidence import Evidence
 from shared.schemas.blocks.financial_buyer import FinancialBuyer
 from shared.schemas.blocks.identity import Identity
 from shared.schemas.blocks.mandate import Mandate
@@ -61,7 +61,6 @@ class CompanyItem(Base):
     track_record: TrackRecord = Field(default_factory=TrackRecord)
 
     evidence: list[Evidence] = Field(default_factory=list)
-    check_evidence: list[CheckEvidence] = Field(default_factory=list)
 
     # Dotted field path → the source key its value came from, e.g.
     # {"capacity.ticket_size": "claude_web"}. Only fields that were filled appear.

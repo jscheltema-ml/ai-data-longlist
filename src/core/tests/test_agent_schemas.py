@@ -15,10 +15,14 @@ from conftest_payloads import (
 from pydantic import ValidationError
 
 from shared.schemas import (
+    AVAILABILITY_SCHEMA,
+    RELEVANCE_SCHEMA,
     SEARCH_AGENT_SCHEMA,
     WIP_SEARCH_SCHEMA,
+    AvailabilityCheck,
     BuyerType,
     Capacity,
+    CheckResult,
     Classification,
     CompanyItem,
     Deal,
@@ -30,6 +34,7 @@ from shared.schemas import (
     Mandate,
     MonetaryAmount,
     MonetaryRange,
+    RelevanceCheck,
     SearchAgentCompany,
     SearchAgentOutput,
     StrategicBuyer,
@@ -301,3 +306,102 @@ def test_the_wip_schema_stays_loose_about_country():
     reply = {"companies": [{"name": "X", "country": "Netherlands"}]}
 
     assert WIPSearchOutput.model_validate(reply).companies[0].country == "Netherlands"
+
+
+# ── The two check agents ─────────────────────────────────────
+
+RELEVANCE_REPLY = {
+    "sector_fits": True,
+    "activity_fits": True,
+    "size_fits": False,
+    "geography_fits": True,
+    "evidence": [
+        {
+            "reason": "size_mismatch",
+            "text": "writes EUR 100-400m tickets",
+            "url": "https://example.invalid/mandate",
+            "retrieved_at": "2026-09-22T10:18:01Z",
+        }
+    ],
+    "result": "excluded",
+}
+
+AVAILABILITY_REPLY = {
+    "in_process": True,
+    "evidence": [
+        {
+            "reason": "in_active_process",
+            "text": "entered exclusivity in August",
+            "url": "https://example.invalid/news",
+            "retrieved_at": "2026-09-22T10:18:01Z",
+        }
+    ],
+    "result": "excluded",
+}
+
+
+def test_the_relevance_agent_reports_each_dimension_and_a_verdict():
+    """The booleans survive alongside the verdict: excluded on size reads differently from
+    excluded on geography, and only these say which it was."""
+    check = RelevanceCheck.model_validate(RELEVANCE_REPLY)
+
+    assert (check.sector_fits, check.size_fits) == (True, False)
+    assert check.result is CheckResult.EXCLUDED
+    assert check.evidence[0].reason == "size_mismatch"
+
+
+def test_the_availability_agent_reports_one_question_and_a_verdict():
+    check = AvailabilityCheck.model_validate(AVAILABILITY_REPLY)
+
+    assert check.in_process is True
+    assert check.result is CheckResult.EXCLUDED
+
+
+@pytest.mark.parametrize(
+    ("model", "reply"),
+    [(RelevanceCheck, RELEVANCE_REPLY), (AvailabilityCheck, AVAILABILITY_REPLY)],
+)
+def test_a_check_reply_full_of_nulls_parses(model, reply):
+    """Strict output makes every field required, so an undecided dimension arrives as null."""
+    nulled = dict.fromkeys(reply) | {"result": "verified"}
+
+    check = model.model_validate(nulled)
+
+    assert check.result is CheckResult.VERIFIED
+    assert check.evidence == []
+
+
+@pytest.mark.parametrize("model", [RelevanceCheck, AvailabilityCheck])
+def test_a_verdict_is_required(model):
+    """Everything else may be unknown; the agent must still commit to an outcome."""
+    with pytest.raises(ValidationError, match="result"):
+        model.model_validate({"evidence": []})
+
+
+@pytest.mark.parametrize("model", [RelevanceCheck, AvailabilityCheck])
+def test_the_verdict_is_closed_to_the_two_outcomes(model):
+    with pytest.raises(ValidationError):
+        model.model_validate({"result": "flagged"})
+
+
+@pytest.mark.parametrize(
+    ("schema", "model"),
+    [(RELEVANCE_SCHEMA, RelevanceCheck), (AVAILABILITY_SCHEMA, AvailabilityCheck)],
+)
+def test_each_check_schema_matches_its_model(schema, model):
+    assert set(schema["properties"]) == set(model.model_fields)
+
+
+@pytest.mark.parametrize("schema", [RELEVANCE_SCHEMA, AVAILABILITY_SCHEMA])
+def test_the_check_schemas_are_strict_valid(schema):
+    supported = {
+        "$defs", "$ref", "additionalProperties", "anyOf", "description",
+        "enum", "items", "properties", "required", "title", "type",
+    }
+    used = {key for _, node in _walk(schema) if isinstance(node, dict) for key in node}
+    assert used <= supported
+
+    for path, node in _walk(schema):
+        if isinstance(node, dict) and "properties" in node:
+            assert set(node["required"]) == set(node["properties"]), path
+            assert node["additionalProperties"] is False, path

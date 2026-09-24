@@ -56,17 +56,28 @@ class CleanedStatus(StrEnum):
     FAILED = "failed"
 
 
-class CheckedStatus(StrEnum):
-    """Verdict of the check stage.
+class CheckResult(StrEnum):
+    """What a check agent can conclude.
 
-    `excluded` and `flagged` are judgements about the buyer and each carry a reason code;
-    `failed` and `skipped` are facts about the run and carry none.
+    Only two outcomes, because an agent either found enough to keep the buyer or enough to
+    drop it. The pipeline's own states (pending, failed, skipped) are facts about the run
+    and are not the agent's to report, which is why `CheckStatus` is a separate enum.
+    """
+
+    VERIFIED = "verified"
+    EXCLUDED = "excluded"
+
+
+class CheckStatus(StrEnum):
+    """Where one check has got to, for both relevance and availability.
+
+    `verified` and `excluded` are the agent's verdict carried over; `failed` and `skipped`
+    are what happened to the run. Only `excluded` carries a reason code.
     """
 
     PENDING = "pending"
-    PASSED = "passed"
+    VERIFIED = "verified"
     EXCLUDED = "excluded"
-    FLAGGED = "flagged"
     FAILED = "failed"
     SKIPPED = "skipped"
 

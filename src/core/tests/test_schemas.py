@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from shared.schemas import (
     BuyerType,
     CapacityBasis,
-    CheckedStatus,
+    CheckStatus,
     CompanyItem,
     IdBasis,
     Magnitude,
@@ -62,7 +62,8 @@ def test_item_example_validates():
     item = CompanyItem.model_validate(ITEM)
 
     assert item.id_basis is IdBasis.DOMAIN
-    assert item.pipeline.checked_status is CheckedStatus.PASSED
+    assert item.pipeline.relevant_status is CheckStatus.VERIFIED
+    assert item.pipeline.available_status is CheckStatus.VERIFIED
     assert item.identity.country == "NL"
     assert item.classification.buyer_type is BuyerType.FINANCIAL
     assert item.quality.conflicts[0].resolved_to == "gain"
@@ -135,7 +136,8 @@ def test_item_defaults_the_blocks_later_stages_fill():
         }
     )
 
-    assert bare.pipeline.checked_status is CheckedStatus.PENDING
+    assert bare.pipeline.relevant_status is CheckStatus.PENDING
+    assert bare.pipeline.available_status is CheckStatus.PENDING
     assert bare.quality is None and bare.scoring is None
     assert bare.mandate.countries_active == []
     assert bare.capacity.ticket_size is None
@@ -196,31 +198,48 @@ def test_fund_type_still_subdivides_the_financial_side():
     assert item.financial_buyer.fund_type == "family_office"
 
 
-# ── Pipeline reason codes ────────────────────────────────────
+# ── The two checks are independent ───────────────────────────
 
 
-def test_excluded_without_a_reason_is_rejected():
-    with pytest.raises(ValidationError, match="exclusion_reason must be set"):
-        CompanyItem.model_validate({**ITEM, "pipeline": {**ITEM["pipeline"], "checked_status": "excluded"}})
-
-
-def test_a_reason_left_behind_by_an_earlier_verdict_is_rejected():
-    """The buyer passed this time, so last run's exclusion reason must not still be there."""
-    with pytest.raises(ValidationError, match="exclusion_reason must be set"):
-        CompanyItem.model_validate(
-            {**ITEM, "pipeline": {**ITEM["pipeline"], "exclusion_reason": "in_active_process"}},
-        )
-
-
-def test_flagged_with_a_reason_is_accepted():
+def test_relevance_and_availability_are_separate_verdicts():
+    """A buyer can fit the brief perfectly and still be unreachable, so one excluded check
+    must not drag the other with it."""
     item = CompanyItem.model_validate(
         {
             **ITEM,
-            "pipeline": {**ITEM["pipeline"], "checked_status": "flagged", "flag_reason": "stale_financials"},
+            "pipeline": {
+                **ITEM["pipeline"],
+                "available_status": "excluded",
+                "available_reason": "in_active_process",
+            },
         }
     )
 
-    assert item.pipeline.flag_reason == "stale_financials"
+    assert item.pipeline.relevant_status is CheckStatus.VERIFIED
+    assert item.pipeline.available_status is CheckStatus.EXCLUDED
+    assert item.pipeline.available_reason == "in_active_process"
+
+
+@pytest.mark.parametrize("check", ["relevant", "available"])
+def test_excluded_without_a_reason_is_rejected(check):
+    with pytest.raises(ValidationError, match=f"{check}_reason must be set"):
+        CompanyItem.model_validate({**ITEM, "pipeline": {**ITEM["pipeline"], f"{check}_status": "excluded"}})
+
+
+@pytest.mark.parametrize("check", ["relevant", "available"])
+def test_a_reason_left_behind_by_an_earlier_verdict_is_rejected(check):
+    """The buyer passed this time, so last run's reason must not still be there."""
+    with pytest.raises(ValidationError, match=f"{check}_reason must be set"):
+        CompanyItem.model_validate({**ITEM, "pipeline": {**ITEM["pipeline"], f"{check}_reason": "stale"}})
+
+
+def test_a_check_that_never_ran_is_pending_and_carries_no_reason():
+    item = CompanyItem.model_validate(
+        {**ITEM, "pipeline": {**ITEM["pipeline"], "available_status": "skipped", "available_at": None}}
+    )
+
+    assert item.pipeline.available_status is CheckStatus.SKIPPED
+    assert item.pipeline.available_reason is None
 
 
 # ── Conflicts ────────────────────────────────────────────────

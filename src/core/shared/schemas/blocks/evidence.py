@@ -21,10 +21,13 @@ class Evidence(Base):
 
 
 class CheckEvidence(Base):
-    """Why the check stage reached its verdict.
+    """Why a check agent reached its verdict.
 
-    Keyed by reason code rather than by field, because it backs
-    `pipeline.exclusion_reason` / `flag_reason` instead of a value in the record.
+    Keyed by reason code rather than by field, because it backs a verdict rather than a
+    value. It does not appear on `CompanyItem`: the surviving reason code is already in
+    `pipeline.relevant_reason` / `available_reason`, and keeping the quotes there too would
+    say the same thing twice. The agent output schemas carry it, and whatever a run needs to
+    keep of it belongs with that run's record.
     """
 
     reason: str
