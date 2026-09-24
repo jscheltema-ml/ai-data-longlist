@@ -151,11 +151,20 @@ SEARCH_AGENT_SCHEMA: dict[str, Any] = _obj(
             },
             "the buyer's own position; only when buyer_type is financial",
         ),
-        "StrategicBuyer": _obj(
+        "Financials": _obj(
             {
                 "revenue": _opt("Money"),
                 "ebitda": _opt("Money"),
+                "ebit": _opt("Money"),
+                "enterprise_value": _opt("Money"),
+                "equity": _opt("Money"),
                 "employees": _opt("Headcount"),
+            },
+            "a company's own reported numbers",
+        ),
+        "StrategicBuyer": _obj(
+            {
+                "financials": _opt("Financials"),
                 "listed": {"anyOf": [{"type": "boolean"}, {"type": "null"}]},
                 "ticker": _STR,
                 "parent": _STR | {"description": "group above this entity, if any"},

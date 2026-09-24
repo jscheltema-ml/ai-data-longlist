@@ -9,12 +9,14 @@ from shared.schemas.blocks.capacity import Capacity
 from shared.schemas.blocks.classification import Classification
 from shared.schemas.blocks.evidence import CheckEvidence, Evidence
 from shared.schemas.blocks.financial_buyer import FinancialBuyer, Fund
+from shared.schemas.blocks.financials import Financials
 from shared.schemas.blocks.identity import Identity
 from shared.schemas.blocks.mandate import Mandate
 from shared.schemas.blocks.pipeline import Pipeline
 from shared.schemas.blocks.quality import ConflictingValue, ConflictRecord, Quality
 from shared.schemas.blocks.scoring import ScoreComponent, Scoring
 from shared.schemas.blocks.strategic_buyer import StrategicBuyer
+from shared.schemas.blocks.target import Target
 from shared.schemas.blocks.track_record import Deal, TrackRecord
 
 __all__ = [
@@ -25,6 +27,7 @@ __all__ = [
     "ConflictingValue",
     "Deal",
     "Evidence",
+    "Financials",
     "FinancialBuyer",
     "Fund",
     "Identity",
@@ -34,5 +37,6 @@ __all__ = [
     "ScoreComponent",
     "Scoring",
     "StrategicBuyer",
+    "Target",
     "TrackRecord",
 ]

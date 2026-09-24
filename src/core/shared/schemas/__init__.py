@@ -35,6 +35,7 @@ from shared.schemas.blocks import (
     Deal,
     Evidence,
     FinancialBuyer,
+    Financials,
     Fund,
     Identity,
     Mandate,
@@ -43,8 +44,10 @@ from shared.schemas.blocks import (
     ScoreComponent,
     Scoring,
     StrategicBuyer,
+    Target,
     TrackRecord,
 )
+from shared.schemas.brief import SearchBrief
 from shared.schemas.common import (
     KNOWN_CUSTOMER_TYPES,
     KNOWN_FUND_TYPES,
@@ -98,6 +101,7 @@ __all__ = [
     "CurrencyCode",
     "Deal",
     "Evidence",
+    "Financials",
     "FinancialBuyer",
     "Fund",
     "Headcount",
@@ -118,7 +122,9 @@ __all__ = [
     "SearchAgentOutput",
     "SourceEnvelope",
     "SourceStatus",
+    "SearchBrief",
     "StrategicBuyer",
+    "Target",
     "TrackRecord",
     "WIPSearchCompany",
     "WIPSearchOutput",

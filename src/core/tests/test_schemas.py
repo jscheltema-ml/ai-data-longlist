@@ -2,6 +2,7 @@
 
 import pytest
 from conftest_payloads import (
+    BRIEF,
     CAPACITY,
     CLASSIFICATION,
     ENVELOPE,
@@ -19,6 +20,7 @@ from shared.schemas import (
     CompanyItem,
     IdBasis,
     Magnitude,
+    SearchBrief,
     SourceEnvelope,
     SourceStatus,
 )
@@ -114,7 +116,8 @@ def test_a_strategic_buyer_carries_its_own_figures_instead():
         }
     )
 
-    assert item.strategic_buyer.revenue.value == 820
+    assert item.strategic_buyer.financials.revenue.value == 820
+    assert item.strategic_buyer.financials.enterprise_value.value == 1150
     assert item.strategic_buyer.listed is True
     assert item.financial_buyer is None
 
@@ -253,3 +256,75 @@ def test_conflict_resolved_to_a_source_that_did_not_take_part_is_rejected():
     }
     with pytest.raises(ValidationError, match="not among the conflicting sources"):
         CompanyItem.model_validate({**ITEM, "quality": {"completeness": 0.72, "conflicts": [conflict]}})
+
+
+# ── SearchBrief: the other half of every comparison ──────────
+
+
+def test_brief_example_validates():
+    brief = SearchBrief.model_validate(BRIEF)
+
+    assert brief.target.identity.name == "Te Koop Industrials B.V."
+    assert brief.target.financials.enterprise_value.value == 55.0
+    assert brief.target.financials.equity.value == 18.0
+    assert brief.buyer_types == [BuyerType.FINANCIAL, BuyerType.STRATEGIC]
+    assert brief.exclusions == ["direct_competitor"]
+
+
+def test_the_brief_and_a_buyer_state_the_same_things_in_the_same_shape():
+    """The point of reusing Mandate and Capacity: relevance compares like with like instead
+    of translating between two vocabularies."""
+    brief = SearchBrief.model_validate(BRIEF)
+    item = CompanyItem.model_validate(ITEM)
+
+    assert type(brief.mandate) is type(item.mandate)
+    assert type(brief.capacity) is type(item.capacity)
+    # and so a comparison is a plain field read on both sides
+    assert set(brief.mandate.countries_active) <= set(item.mandate.countries_active)
+    assert item.capacity.target_ev_range.min <= brief.target.financials.enterprise_value.value
+
+
+def test_sector_and_activity_are_kept_apart():
+    """A buyer can be right on the sector and wrong on what the company actually does; only
+    splitting them lets the relevance agent say which."""
+    brief = SearchBrief.model_validate(BRIEF)
+
+    assert brief.target.sector_text == "industrial automation"
+    assert "food processing" in brief.target.activity
+
+
+def test_a_brief_needs_only_a_target():
+    """Everything else is a constraint, and no constraint means unconstrained."""
+    bare = SearchBrief.model_validate(
+        {
+            "brief_id": "brief_02",
+            "target": {"identity": {"name": "Nog Naamloos B.V."}},
+        }
+    )
+
+    assert bare.buyer_types == []
+    assert bare.mandate.countries_active == []
+    assert bare.capacity.ticket_size is None
+    assert bare.target.financials.revenue is None
+    assert bare.thesis is None
+
+
+def test_the_target_and_a_strategic_buyer_carry_the_same_financials_shape():
+    """One definition of 'a company's numbers', so a size comparison is direct."""
+    brief = SearchBrief.model_validate(BRIEF)
+    item = CompanyItem.model_validate(
+        {
+            **ITEM,
+            "classification": {**CLASSIFICATION, "buyer_type": "strategic"},
+            "financial_buyer": None,
+            "strategic_buyer": STRATEGIC_BUYER,
+        }
+    )
+
+    assert type(brief.target.financials) is type(item.strategic_buyer.financials)
+
+
+def test_brief_round_trips_through_json():
+    brief = SearchBrief.model_validate(BRIEF)
+
+    assert SearchBrief.model_validate(brief.model_dump(mode="json")) == brief

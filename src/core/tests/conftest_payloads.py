@@ -59,13 +59,48 @@ FINANCIAL_BUYER = {
     "portfolio_count": 14,
 }
 
-STRATEGIC_BUYER = {
+FINANCIALS = {
     "revenue": {"value": 820, "currency": "EUR", "unit": "M", "as_of": "2024-12-31"},
     "ebitda": {"value": 96, "currency": "EUR", "unit": "M", "as_of": "2024-12-31"},
+    "ebit": None,
+    "enterprise_value": {"value": 1150, "currency": "EUR", "unit": "M"},
+    "equity": {"value": 430, "currency": "EUR", "unit": "M", "as_of": "2024-12-31"},
     "employees": {"value": 3400, "as_of": "2025-06-30"},
+}
+
+STRATEGIC_BUYER = {
+    "financials": FINANCIALS,
     "listed": True,
     "ticker": "AMS:VBI",
     "parent": None,
+}
+
+BRIEF = {
+    "brief_id": "brief_01",
+    "target": {
+        "identity": {"name": "Te Koop Industrials B.V.", "country": "NL", "hq_city": "Eindhoven"},
+        "sector_text": "industrial automation",
+        "activity": "retrofits control systems for food processing lines",
+        "description": "...",
+        "financials": {
+            "revenue": {"value": 42.0, "currency": "EUR", "unit": "M", "as_of": "2025-12-31"},
+            "ebitda": {"value": 6.5, "currency": "EUR", "unit": "M", "as_of": "2025-12-31"},
+            "enterprise_value": {"value": 55.0, "currency": "EUR", "unit": "M"},
+            "equity": {"value": 18.0, "currency": "EUR", "unit": "M", "as_of": "2025-12-31"},
+            "employees": {"value": 180, "as_of": "2025-06-30"},
+        },
+    },
+    "thesis": "A bolt-on for a European automation group wanting food-sector exposure.",
+    "mandate": {
+        "countries_active": ["NL", "BE", "DE"],
+        "sectors_of_interest": ["industrial automation"],
+        "stake_preference": ["majority"],
+    },
+    "capacity": {
+        "target_ev_range": {"min": 40, "max": 80, "currency": "EUR", "unit": "M"},
+    },
+    "buyer_types": ["financial", "strategic"],
+    "exclusions": ["direct_competitor"],
 }
 
 TRACK_RECORD = {
