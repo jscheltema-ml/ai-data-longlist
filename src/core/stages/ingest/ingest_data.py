@@ -15,20 +15,27 @@ class SourceKey(StrEnum):
 SOURCES = {
     SourceKey.WEB_SEARCH: {
         'function': web_search,
-        'default_search_volume': 10},
+        'default_search_volume': 5},
     SourceKey.GAIN: {
         'function': gain_search,
-        'default_search_volume': 10},
+        'default_search_volume': 5},
 }
 
 async def ingest_data(selected_sources: list[SourceKey], brief: Brief) -> dict[str, SourceBatch]:
 
     chosen = {k: SOURCES[k] for k in selected_sources}
+    print(f"[ingest] asking {len(chosen)} source(s): {[k.value for k in chosen]}", flush=True)
 
     batches = await asyncio.gather(
         *(source["function"](brief, source["default_search_volume"]) for source in chosen.values()), # Manually add run_id?
         return_exceptions=True,
     )
+
+    for key, batch in zip(chosen, batches):
+        if isinstance(batch, Exception):
+            print(f"[ingest]   {key.value}: FAILED {type(batch).__name__}: {batch}", flush=True)
+        else:
+            print(f"[ingest]   {key.value}: {batch.status.value}, {batch.record_count} records", flush=True)
 
     return dict(zip(chosen, batches))
 

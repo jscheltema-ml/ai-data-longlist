@@ -32,6 +32,7 @@ def clean_data(batches: dict[SourceKey, SourceBatch]) -> tuple[list[Buyer], list
     that failed during ingest arrives here as an exception rather than a batch and is skipped:
     it is already on the record in the run, and nothing here can improve on that.
     """
+    print(f"[clean] standardising {len(batches)} batch(es)", flush=True)
     cleaned: list[Buyer] = []
     failed: list[Buyer] = []
 
@@ -39,10 +40,13 @@ def clean_data(batches: dict[SourceKey, SourceBatch]) -> tuple[list[Buyer], list
         if not isinstance(batch, SourceBatch) or not batch.records:
             continue
         converted, unconvertible = CONNECTORS[source](batch)
+        print(f"[clean]   {source.value}: {len(converted)} converted, {len(unconvertible)} failed", flush=True)
         cleaned.extend(converted)
         failed.extend(unconvertible)
 
-    return _merge(cleaned), failed
+    merged = _merge(cleaned)
+    print(f"[clean] {len(cleaned)} buyers -> {len(merged)} after dedupe", flush=True)
+    return merged, failed
 
 
 def _merge(buyers: list[Buyer]) -> list[Buyer]:
