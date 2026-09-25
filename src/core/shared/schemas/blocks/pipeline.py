@@ -28,6 +28,7 @@ class Pipeline(Base):
     cleaned_status: CleanedStatus = CleanedStatus.PENDING
     cleaned_at: AwareDatetime | None = None
     cleaned_by: str | None = None
+    cleaned_reason: str | None = None
 
     # Fits the brief: sector, activity, size, geography.
     relevant_status: CheckStatus = CheckStatus.PENDING
@@ -47,8 +48,12 @@ class Pipeline(Base):
 
     @model_validator(mode="after")
     def _reasons_match_verdicts(self) -> "Pipeline":
-        """An excluded buyer without a reason is unreviewable, and a reason on one that was
-        not excluded is a leftover from an earlier verdict. Both are caught here."""
+        """A buyer that was dropped without a reason is unreviewable, and a reason on one that
+        was not dropped is a leftover from an earlier verdict. Both are caught here, for the
+        merge and for each of the two checks."""
+        if (self.cleaned_status is CleanedStatus.FAILED) != (self.cleaned_reason is not None):
+            raise ValueError("cleaned_reason must be set if and only if cleaned_status is 'failed'")
+
         for status, reason, name in (
             (self.relevant_status, self.relevant_reason, "relevant_reason"),
             (self.available_status, self.available_reason, "available_reason"),

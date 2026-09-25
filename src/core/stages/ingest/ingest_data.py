@@ -1,11 +1,12 @@
-from stages.ingestion.sources.web_search import web_search
-from stages.ingestion.sources.gain import gain_search
+from stages.ingest.sources.web_search import web_search
+from stages.ingest.sources.gain import gain_search
 
 from shared.schemas.brief import Brief
 from shared.schemas.source_batch import SourceBatch
 
 from typing import Literal
 import asyncio
+from enum import StrEnum
 
 class SourceKey(StrEnum):
     WEB_SEARCH = "web_search"

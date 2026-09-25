@@ -33,7 +33,8 @@ dependencies = [
     "agent-framework-foundry (>=1.11,<2.0)",
     "tabulate (>=0.10.0,<0.11.0)",
     "mcp (>=1.30,<2)",
-    "httpx (>=0.28.1,<0.29.0)"
+    "httpx (>=0.28.1,<0.29.0)",
+    "agent-framework-core (>=1.19.0,<2.0.0)"
 ]
 
 

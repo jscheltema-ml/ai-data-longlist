@@ -1,7 +1,7 @@
 from agent_framework import Agent
 
 from clients.llm import foundry_client
-from shared.schemas.agents.search_wip import WIP_SEARCH_SCHEMA
+from shared.schemas.agents.search import SEARCH_AGENT_SCHEMA
 
 # Create web search tool with location context
 web_search_tool = foundry_client.get_web_search_tool(
@@ -16,6 +16,6 @@ web_search_agent = Agent(
     tools=[web_search_tool],
     default_options={
         "include": ["web_search_call.action.sources"],
-        "response_format": WIP_SEARCH_SCHEMA,
+        "response_format": SEARCH_AGENT_SCHEMA,
     },
 )

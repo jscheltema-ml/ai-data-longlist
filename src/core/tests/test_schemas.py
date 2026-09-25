@@ -19,6 +19,7 @@ from shared.schemas import (
     BuyerType,
     CapacityBasis,
     CheckStatus,
+    CleanedStatus,
     IdBasis,
     Magnitude,
     SourceBatch,
@@ -328,3 +329,34 @@ def test_brief_round_trips_through_json():
     brief = Brief.model_validate(BRIEF)
 
     assert Brief.model_validate(brief.model_dump(mode="json")) == brief
+
+
+# ── A failed merge carries its reason ────────────────────────
+
+
+def test_cleaning_failed_without_a_reason_is_rejected():
+    with pytest.raises(ValidationError, match="cleaned_reason must be set"):
+        Buyer.model_validate({**ITEM, "pipeline": {**ITEM["pipeline"], "cleaned_status": "failed"}})
+
+
+def test_a_reason_on_a_merge_that_did_not_fail_is_rejected():
+    with pytest.raises(ValidationError, match="cleaned_reason must be set"):
+        Buyer.model_validate({**ITEM, "pipeline": {**ITEM["pipeline"], "cleaned_reason": "stale"}})
+
+
+def test_a_failed_merge_is_a_buyer_like_any_other():
+    """The point of recording it this way: a record that would not convert is still countable
+    and reviewable rather than gone."""
+    buyer = Buyer.model_validate(
+        {
+            **ITEM,
+            "pipeline": {
+                **ITEM["pipeline"],
+                "cleaned_status": "failed",
+                "cleaned_reason": "identity.name: Field required",
+            },
+        }
+    )
+
+    assert buyer.pipeline.cleaned_status is CleanedStatus.FAILED
+    assert "identity.name" in buyer.pipeline.cleaned_reason
