@@ -2,10 +2,10 @@
 
 The records that get stored sit at the top of this package:
 
-- `SourceEnvelope` (`envelope.py`) — one adapter's raw output for one run, source-shaped.
-- `CompanyItem` (`item.py`) — the merged buyer record every later stage reads and writes.
+- `SourceBatch` (`batch.py`) — one adapter's raw output for one run, source-shaped.
+- `Buyer` (`item.py`) — the merged buyer record every later stage reads and writes.
 
-Underneath, `blocks/` holds the nested models `CompanyItem` is assembled from, `agents/`
+Underneath, `blocks/` holds the nested models `Buyer` is assembled from, `agents/`
 holds what each agent is instructed to return, and `common/` holds what all of them build
 on: the shared model config, primitive types and controlled vocabularies. Imports run one
 way only, common → blocks → records and agents.
@@ -47,7 +47,8 @@ from shared.schemas.blocks import (
     Target,
     TrackRecord,
 )
-from shared.schemas.brief import SearchBrief
+from shared.schemas.brief import Brief
+from shared.schemas.buyer import Buyer
 from shared.schemas.common import (
     KNOWN_CUSTOMER_TYPES,
     KNOWN_FUND_TYPES,
@@ -68,23 +69,18 @@ from shared.schemas.common import (
     Magnitude,
     MonetaryAmount,
     MonetaryRange,
+    RunStatus,
     ScoredStatus,
     SourceStatus,
+    Stage,
+    StageStatus,
 )
-from shared.schemas.envelope import SourceEnvelope
-from shared.schemas.item import CompanyItem
+from shared.schemas.run import Run, SourceRun, StageRun
+from shared.schemas.source_batch import SourceBatch
 
 __all__ = [
     "AVAILABILITY_SCHEMA",
-    "RELEVANCE_SCHEMA",
-    "SEARCH_AGENT_SCHEMA",
-    "WIP_SEARCH_SCHEMA",
-    "KNOWN_CUSTOMER_TYPES",
-    "KNOWN_FUND_TYPES",
-    "KNOWN_HOLDING_PERIODS",
-    "KNOWN_SOURCE_KEYS",
-    "KNOWN_STAKE_PREFERENCES",
-    "KNOWN_STRATEGIES",
+    "AvailabilityCheck",
     "Base",
     "BuyerType",
     "Capacity",
@@ -94,38 +90,52 @@ __all__ = [
     "CheckStatus",
     "Classification",
     "CleanedStatus",
-    "CompanyItem",
+    "Buyer",
     "ConflictRecord",
     "ConflictingValue",
     "CountryCode",
     "CurrencyCode",
     "Deal",
     "Evidence",
-    "Financials",
     "FinancialBuyer",
+    "Financials",
     "Fund",
     "Headcount",
     "IdBasis",
     "Identity",
+    "KNOWN_CUSTOMER_TYPES",
+    "KNOWN_FUND_TYPES",
+    "KNOWN_HOLDING_PERIODS",
+    "KNOWN_SOURCE_KEYS",
+    "KNOWN_STAKE_PREFERENCES",
+    "KNOWN_STRATEGIES",
     "Magnitude",
     "Mandate",
     "MonetaryAmount",
     "MonetaryRange",
     "Pipeline",
     "Quality",
+    "RELEVANCE_SCHEMA",
+    "RelevanceCheck",
+    "Run",
+    "RunStatus",
+    "SEARCH_AGENT_SCHEMA",
     "ScoreComponent",
     "ScoredStatus",
     "Scoring",
-    "AvailabilityCheck",
-    "RelevanceCheck",
     "SearchAgentCompany",
     "SearchAgentOutput",
-    "SourceEnvelope",
+    "Brief",
+    "SourceBatch",
+    "SourceRun",
     "SourceStatus",
-    "SearchBrief",
+    "Stage",
+    "StageRun",
+    "StageStatus",
     "StrategicBuyer",
     "Target",
     "TrackRecord",
     "WIPSearchCompany",
     "WIPSearchOutput",
+    "WIP_SEARCH_SCHEMA",
 ]

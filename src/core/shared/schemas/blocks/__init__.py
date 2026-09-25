@@ -1,6 +1,6 @@
-"""The nested models `CompanyItem` is assembled from, one file per block.
+"""The nested models `Buyer` is assembled from, one file per block.
 
-Each is a field of `CompanyItem` and means little on its own. They are grouped here so the
+Each is a field of `Buyer` and means little on its own. They are grouped here so the
 records stay at the top of the package and the pieces do not compete with them for
 attention. The search agent composes the same blocks, so a change here reaches both.
 """

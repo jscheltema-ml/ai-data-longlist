@@ -4,7 +4,7 @@ Kept verbatim so that renaming or retyping a field fails here before it fails an
 matters.
 """
 
-ENVELOPE = {
+BATCH = {
     "run_id": "01JBQ000000000000000000000",
     "source_key": "gain",
     "adapter_version": "1.0",

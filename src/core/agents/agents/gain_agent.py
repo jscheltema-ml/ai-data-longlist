@@ -6,7 +6,7 @@ from shared.schemas.agents.search_wip import WIP_SEARCH_SCHEMA
 
 gain_tools = gain_mcp_tools()
 
-gain_agent = Agent(
+gain_mcp_agent = Agent(
     client=foundry_client,
     instructions="You are an M&A long-list generator that searches Gain for potential buyers for a company.",
     tools=gain_tools,

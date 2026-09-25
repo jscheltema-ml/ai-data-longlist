@@ -20,11 +20,11 @@ from shared.schemas import (
     SEARCH_AGENT_SCHEMA,
     WIP_SEARCH_SCHEMA,
     AvailabilityCheck,
+    Buyer,
     BuyerType,
     Capacity,
     CheckResult,
     Classification,
-    CompanyItem,
     Deal,
     Evidence,
     FinancialBuyer,
@@ -71,7 +71,7 @@ def test_the_blocks_it_emits_are_the_same_objects_the_item_holds():
     """The point of controlling the output format: no reshaping between the two, so the
     connector copies blocks across rather than mapping field by field."""
     found = SearchAgentCompany.model_validate(FOUND)
-    item = CompanyItem.model_validate(ITEM)
+    item = Buyer.model_validate(ITEM)
 
     assert found.identity == item.identity
     assert found.mandate == item.mandate
@@ -85,7 +85,7 @@ def test_a_found_company_becomes_an_item_by_adding_what_only_the_stage_knows():
     a record of where it came from. No block is rebuilt."""
     found = SearchAgentCompany.model_validate(FOUND)
 
-    item = CompanyItem.model_validate(
+    item = Buyer.model_validate(
         {
             **found.model_dump(mode="json"),
             "item_id": "cmp_8f3a",

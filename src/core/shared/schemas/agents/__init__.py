@@ -1,7 +1,7 @@
 """Output formats for the agents, one module per agent.
 
 Each is the shape its agent is instructed to return, composed of the same `blocks` models as
-the merged record, so the connector into `CompanyItem` is a near-identity mapping.
+the merged record, so the connector into `Buyer` is a near-identity mapping.
 """
 
 from shared.schemas.agents.available import AVAILABILITY_SCHEMA, AvailabilityCheck

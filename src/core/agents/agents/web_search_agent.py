@@ -8,7 +8,9 @@ web_search_tool = foundry_client.get_web_search_tool(
     user_location={"city": "Amsterdam", "country": "NL"},
 )
 
-search_agent = Agent(
+#### IS THIS THE RIGHT WEB SEARCH TOOL??? USES BING FOR EXAMPLE #######
+
+web_search_agent = Agent(
     client=foundry_client,
     instructions="You are an M&A long-list generator that searches the web for potential buyers for a company.",
     tools=[web_search_tool],

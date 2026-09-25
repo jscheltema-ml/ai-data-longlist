@@ -25,8 +25,11 @@ from shared.schemas.common.enums import (
     CheckStatus,
     CleanedStatus,
     IdBasis,
+    RunStatus,
     ScoredStatus,
     SourceStatus,
+    Stage,
+    StageStatus,
 )
 from shared.schemas.common.validators import check_buyer_blocks
 
@@ -47,10 +50,13 @@ __all__ = [
     "CurrencyCode",
     "Headcount",
     "IdBasis",
+    "RunStatus",
     "Magnitude",
     "MonetaryAmount",
     "MonetaryRange",
     "ScoredStatus",
     "SourceStatus",
+    "Stage",
+    "StageStatus",
     "check_buyer_blocks",
 ]

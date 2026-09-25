@@ -3,19 +3,19 @@
 import uuid
 from datetime import UTC, datetime
 
-from agents.agents.web_search_agent import search_agent
-from shared.schemas.brief import SearchBrief
-from shared.schemas.envelope import SourceEnvelope
+from agents.agents.web_search_agent import web_search_agent
+from shared.schemas.brief import Brief
+from shared.schemas.source_batch import SourceBatch
 
 SOURCE_KEY = "web_search"
 ADAPTER_VERSION = "0.1"
 
 
-async def search_web(brief: SearchBrief, search_volume: int, run_id: str | None = None) -> SourceEnvelope:
-    """Ask the search agent for buyers matching `brief`, as one envelope.
+async def web_search(brief: Brief, search_volume: int, run_id: str | None = None) -> SourceBatch:
+    """Ask the search agent for buyers matching `brief`, as one batch.
 
-    Returns an envelope either way: a run that comes back with nothing is a `failed` record
-    of an attempt, not an exception, because the point of the envelope is that a bad parse
+    Returns a batch either way: a run that comes back with nothing is a `failed` record
+    of an attempt, not an exception, because the point of the batch is that a bad parse
     cannot lose the fact that the fetch happened.
     """
     run_id = run_id or uuid.uuid4().hex
@@ -25,12 +25,12 @@ async def search_web(brief: SearchBrief, search_volume: int, run_id: str | None 
     )
 
     started_at = datetime.now(UTC)
-    response = await search_agent.run(prompt)
+    response = await web_search_agent.run(prompt)
     finished_at = datetime.now(UTC)
     records = (response.value or {}).get("companies") or []
     failed = not records
 
-    return SourceEnvelope(
+    return SourceBatch(
         run_id=run_id,
         source_key=SOURCE_KEY,
         adapter_version=ADAPTER_VERSION,
@@ -43,4 +43,4 @@ async def search_web(brief: SearchBrief, search_volume: int, run_id: str | None 
         records=records,
     )
 
-# Needs turn and cost capping. 
+# Needs turn and cost capping.

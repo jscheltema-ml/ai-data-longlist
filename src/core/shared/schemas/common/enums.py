@@ -42,6 +42,44 @@ class CapacityBasis(StrEnum):
     MIXED = "mixed"
 
 
+class Stage(StrEnum):
+    """The stages a run can be asked for, in the order they run.
+
+    The same five the per-item `Pipeline` tracks, plus ingestion, which has no per-item
+    status because an item does not exist until it has happened.
+    """
+
+    INGESTION = "ingestion"
+    CLEANING = "cleaning"
+    RELEVANCE = "relevance"
+    AVAILABILITY = "availability"
+    SCORING = "scoring"
+
+
+class RunStatus(StrEnum):
+    """How a run as a whole is going.
+
+    `partial` is the common ending rather than an edge case: one source failing while the
+    others returned usable buyers is a result worth keeping, not a failed run.
+    """
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+
+
+class StageStatus(StrEnum):
+    """How one stage of a run went. `skipped` means it was not among the stages requested."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
 class SourceStatus(StrEnum):
     """How one adapter run ended. `partial` means usable records plus a reported failure."""
 

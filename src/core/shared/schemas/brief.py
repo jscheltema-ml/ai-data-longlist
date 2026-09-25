@@ -9,12 +9,12 @@ from shared.schemas.common.base import Base
 from shared.schemas.common.enums import BuyerType
 
 
-class SearchBrief(Base):
+class Brief(Base):
     """The search parameters for one long list, and the other half of every comparison.
 
-    A `CompanyItem` says what a buyer is and what it covers. This says what we want covered.
+    A `Buyer` says what a buyer is and what it covers. This says what we want covered.
     Both sides use the same two blocks on purpose: `mandate` and `capacity` here are the
-    buyer we are hoping to find, and on a `CompanyItem` they are the buyer we found, so
+    buyer we are hoping to find, and on a `Buyer` they are the buyer we found, so
     relevance is a comparison of like with like rather than a translation between two
     vocabularies.
 

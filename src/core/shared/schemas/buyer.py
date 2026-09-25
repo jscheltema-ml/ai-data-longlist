@@ -18,7 +18,7 @@ from shared.schemas.common.enums import IdBasis
 from shared.schemas.common.validators import check_buyer_blocks
 
 
-class CompanyItem(Base):
+class Buyer(Base):
     """One potential buyer, as it stands after however many stages have run.
 
     These are acquirers, not targets. Nothing here describes a company for sale: `mandate`
@@ -70,6 +70,6 @@ class CompanyItem(Base):
     scoring: Scoring | None = None
 
     @model_validator(mode="after")
-    def _buyer_block_matches_type(self) -> "CompanyItem":
+    def _buyer_block_matches_type(self) -> "Buyer":
         check_buyer_blocks(self.classification.buyer_type, self.financial_buyer, self.strategic_buyer)
         return self

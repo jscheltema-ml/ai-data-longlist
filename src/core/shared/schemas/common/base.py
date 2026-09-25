@@ -14,7 +14,7 @@ class Base(BaseModel):
     `extra="forbid"` is deliberate: these models are the contract between the stages, so a
     key nobody declared is a bug in the producer rather than data worth carrying along.
     Where a payload genuinely is source-shaped it gets an untyped dict instead, which is
-    why `SourceEnvelope.records` is typed the way it is.
+    why `SourceBatch.records` is typed the way it is.
 
     Assignment is not revalidated: stages fill a record in over several steps, and
     validating each field as it is set would reject legal intermediate states (a status
